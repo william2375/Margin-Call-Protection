@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>暖陽奶油維持率計算機</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #FFFBF0; /* 奶油底色 */
+            font-family: 'Noto Sans TC', sans-serif;
+            color: #451a03; /* 深琥珀色文字 */
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 25px -5px rgba(251, 191, 36, 0.1), 0 8px 10px -6px rgba(251, 191, 36, 0.05);
+            border: 1px solid #FEF3C7;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 0.6rem;
+            padding-left: 0.25rem;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 0.85rem;
+            border: 2px solid #FEF3C7;
+            border-radius: 1rem;
+            outline: none;
+            transition: all 0.3s;
+            background-color: #fffdfa;
+            color: #78350f;
+        }
+        .input-group input:focus {
+            border-color: #FDBA74;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 4px rgba(253, 186, 116, 0.2);
+        }
+        /* 表格自定義風格 */
+        .stress-table tr {
+            transition: background-color 0.2s;
+        }
+        .danger-row {
+            background-color: #FFF1F2 !important;
+            color: #9f1239;
+        }
+        .warning-row {
+            background-color: #FFFBEB !important;
+            color: #92400e;
+        }
+        .critical-row {
+            background-color: #450a0a !important;
+            color: #ffffff !important;
+        }
+        /* 滾動條美化 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FFFBF0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #FDE68A;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-10 text-center">
+            <div class="inline-block bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-sm font-bold mb-3">
+                Margin Call Protection
+            </div>
+            <h1 class="text-4xl font-black text-amber-900 tracking-tight">維持率計算機</h1>
+            <p class="text-amber-700/70 mt-3 font-medium">即時試算追繳壓力，提前做好資金調度</p>
+        </header>
+
+        <!-- 輸入區 -->
+        <div class="card p-8 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="input-group">
+                    <label for="price">擔保品現價 (元)</label>
+                    <input type="number" id="price" placeholder="100" step="0.1" value="100">
+                </div>
+                <div class="input-group">
+                    <label for="quantity">持有張數 (張)</label>
+                    <input type="number" id="quantity" placeholder="10" value="10">
+                </div>
+                <div class="input-group">
+                    <label for="loan">貸款金額 (萬元)</label>
+                    <input type="number" id="loan" placeholder="60" value="60">
+                </div>
+                <div class="input-group">
+                    <label for="rate">年利率 (%)</label>
+                    <input type="number" id="rate" placeholder="2.5" step="0.01" value="2.5">
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心結果顯示 -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+            <div class="card p-6 text-center border-b-8 border-orange-200">
+                <p class="text-xs font-bold text-amber-700/60 uppercase tracking-widest">擔保總市值</p>
+                <p id="totalValue" class="text-xl font-bold text-amber-900 mt-2">--</p>
+            </div>
+            <div id="ratioCard" class="card p-6 text-center border-b-8 border-emerald-200">
+                <p class="text-xs font-bold text-amber-700/60 uppercase tracking-widest">當前維持率</p>
+                <p id="marginRatio" class="text-3xl font-black text-amber-900 mt-1">--</p>
+            </div>
+            <div class="card p-6 text-center border-b-8 border-amber-300">
+                <p class="text-xs font-bold text-amber-700/60 uppercase tracking-widest">追繳股價點位</p>
+                <p id="callPrice" class="text-xl font-bold text-amber-900 mt-2">--</p>
+            </div>
+            <div class="card p-6 text-center border-b-8 border-orange-400">
+                <p class="text-xs font-bold text-amber-700/60 uppercase tracking-widest">追繳需補足金額</p>
+                <p id="repayAmount" class="text-xl font-bold text-rose-600 mt-2">--</p>
+            </div>
+        </div>
+
+        <!-- 壓力測試表格 -->
+        <div class="card overflow-hidden mb-10 border-none shadow-xl">
+            <div class="bg-gradient-to-r from-orange-500 to-amber-500 p-5 text-center sm:text-left">
+                <h2 class="text-white font-bold flex items-center justify-center sm:justify-start">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    追繳壓力測試：跌幅與現金補足預估
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm min-w-[650px] stress-table">
+                    <thead>
+                        <tr class="bg-amber-50 text-amber-800 border-b border-amber-100">
+                            <th class="py-4 px-4 font-bold">跌幅變化</th>
+                            <th class="py-4 px-4 font-bold">預估股價</th>
+                            <th class="py-4 px-4 font-bold">預估維持率</th>
+                            <th class="py-4 px-4 font-bold">追繳補足(至166%)</th>
+                            <th class="py-4 px-4 font-bold">風險狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stressTestBody" class="divide-y divide-amber-50">
+                        <!-- JS Generated -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 bg-amber-50/50 text-[11px] text-amber-700/60 text-center">
+                ※ 補繳計算方式：透過「償還部分貸款」使維持率回到 166% 之安全水準。
+            </div>
+        </div>
+
+        <!-- 利息預算區 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start mb-10">
+            <div class="card p-8">
+                <h2 class="text-lg font-bold text-amber-900 mb-6 flex items-center">
+                    <span class="bg-orange-100 p-2 rounded-lg mr-3">💰</span>
+                    借貸成本估算
+                </h2>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center bg-orange-50/50 p-3 rounded-xl">
+                        <span class="text-amber-800 font-medium">每日利息</span>
+                        <span id="dailyInterest" class="font-bold text-amber-900 text-lg">--</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-orange-50/50 p-3 rounded-xl">
+                        <span class="text-amber-800 font-medium">每月利息 (30日)</span>
+                        <span id="monthlyInterest" class="font-bold text-amber-900 text-lg">--</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-orange-100 p-3 rounded-xl">
+                        <span class="text-amber-800 font-bold">預估年息支出</span>
+                        <span id="yearlyInterest" class="font-bold text-orange-700 text-xl">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 text-amber-800/60 text-sm italic space-y-3">
+                <p class="font-bold text-amber-800">⚠️ 追繳規則說明：</p>
+                <p>• <b>追繳觸發：</b>當維持率低於 <b>130%</b> 時，券商將發出追繳令。</p>
+                <p>• <b>補繳目標：</b>收到追繳令後，通常需補繳至維持率恢復到 <b>166%</b> 以上，否則擔保品可能被強制平倉（斷頭）。</p>
+                <p>• <b>計算基準：</b>本表補繳金額係假設以「現金還款」來降低負債比率，不考慮補入新股票。計算結果僅供參考，實際請依各券商規定為準。</p>
+            </div>
+        </div>
+
+        <footer class="text-center text-amber-800/40 text-xs pb-10">
+            &copy; 2024 暖陽金融工具箱 - 讓投資決策更從容
+        </footer>
+    </div>
+
+    <script>
+        const inputs = ['price', 'quantity', 'loan', 'rate'];
+        const elements = {};
+        const TARGET_RATIO = 1.66; // 補回目標 166%
+
+        window.onload = () => {
+            inputs.forEach(id => {
+                elements[id] = document.getElementById(id);
+                elements[id].addEventListener('input', calculate);
+            });
+            calculate();
+        };
+
+        // 補繳計算邏輯：將維持率補回 166% 需償還的貸款本金
+        function getRepayAmount(value, loan, target) {
+            if (loan <= 0) return 0;
+            const currentRatio = value / loan;
+            if (currentRatio >= target) return 0;
+            const repay = loan - (value / target);
+            return Math.max(0, Math.ceil(repay));
+        }
+
+        function calculate() {
+            const price = parseFloat(elements.price.value) || 0;
+            const quantity = parseFloat(elements.quantity.value) || 0;
+            const loanWan = parseFloat(elements.loan.value) || 0;
+            const rate = parseFloat(elements.rate.value) || 0;
+
+            const loanAmount = loanWan * 10000;
+            const totalValue = price * quantity * 1000;
+            
+            let ratio = 0;
+            if (loanAmount > 0) ratio = (totalValue / loanAmount) * 100;
+
+            let callPrice = 0;
+            if (quantity > 0) callPrice = (1.3 * loanAmount) / (quantity * 1000);
+
+            const repay = getRepayAmount(totalValue, loanAmount, TARGET_RATIO);
+
+            const yearlyInt = loanAmount * (rate / 100);
+            const dailyInt = yearlyInt / 365;
+            const monthlyInt = dailyInt * 30;
+
+            // UI Updates
+            document.getElementById('totalValue').innerText = `NT$ ${totalValue.toLocaleString()}`;
+            
+            const ratioEl = document.getElementById('marginRatio');
+            const ratioCard = document.getElementById('ratioCard');
+            ratioEl.innerText = ratio > 0 ? `${ratio.toFixed(2)}%` : '--%';
+
+            // Color Logic based on Ratio
+            if (ratio === 0) {
+                ratioCard.style.borderBottomColor = '#e2e8f0';
+            } else if (ratio < 130) {
+                ratioCard.style.borderBottomColor = '#f43f5e'; // 紅色 (已跌破 130)
+                ratioEl.className = 'text-3xl font-black text-rose-600 mt-1';
+            } else if (ratio < 166) {
+                ratioCard.style.borderBottomColor = '#fbbf24'; // 橘黃 (追繳警戒區)
+                ratioEl.className = 'text-3xl font-black text-amber-600 mt-1';
+            } else {
+                ratioCard.style.borderBottomColor = '#10b981'; // 綠色 (安全)
+                ratioEl.className = 'text-3xl font-black text-emerald-600 mt-1';
+            }
+
+            document.getElementById('callPrice').innerText = callPrice > 0 ? `NT$ ${callPrice.toFixed(2)}` : '--';
+            document.getElementById('repayAmount').innerText = repay > 0 ? `NT$ ${repay.toLocaleString()}` : '暫無風險';
+            
+            document.getElementById('dailyInterest').innerText = `NT$ ${Math.round(dailyInt).toLocaleString()}`;
+            document.getElementById('monthlyInterest').innerText = `NT$ ${Math.round(monthlyInt).toLocaleString()}`;
+            document.getElementById('yearlyInterest').innerText = `NT$ ${Math.round(yearlyInt).toLocaleString()}`;
+
+            updateStressTest(price, quantity, loanAmount);
+        }
+
+        function updateStressTest(basePrice, quantity, loanAmount) {
+            const body = document.getElementById('stressTestBody');
+            body.innerHTML = '';
+            if (basePrice <= 0 || loanAmount <= 0) return;
+
+            let currentDropPercent = 0;
+            let currentRatio = 1000;
+
+            // 計算直到維持率低於 110%
+            while (currentRatio >= 110 && currentDropPercent >= -0.95) {
+                const currentPrice = basePrice * (1 + currentDropPercent);
+                const currentValue = currentPrice * quantity * 1000;
+                currentRatio = (currentValue / loanAmount) * 100;
+                const repay = getRepayAmount(currentValue, loanAmount, TARGET_RATIO);
+                
+                let statusText = '安全';
+                let rowClass = 'hover:bg-orange-50/50 transition-colors';
+                let tagClass = 'bg-emerald-100 text-emerald-800';
+                
+                if (currentRatio < 110) {
+                    statusText = '即將斷頭';
+                    rowClass = 'critical-row';
+                    tagClass = 'bg-white/20 text-white border border-white/50';
+                } else if (currentRatio < 130) {
+                    statusText = '觸發追繳';
+                    rowClass = 'danger-row';
+                    tagClass = 'bg-rose-100 text-rose-800';
+                } else if (currentRatio < 166) {
+                    statusText = '補錢警戒';
+                    rowClass = 'warning-row';
+                    tagClass = 'bg-amber-100 text-amber-800';
+                }
+
+                const tr = document.createElement('tr');
+                tr.className = rowClass;
+                tr.innerHTML = `
+                    <td class="py-4 px-4 font-bold text-center md:text-left">${currentDropPercent === 0 ? '基準現價' : (currentDropPercent * 100).toFixed(0) + '%'}</td>
+                    <td class="py-4 px-4 font-mono font-medium">${currentPrice.toFixed(2)}</td>
+                    <td class="py-4 px-4 font-black">${currentRatio.toFixed(2)}%</td>
+                    <td class="py-4 px-4 font-bold text-rose-600">${repay > 0 ? 'NT$ ' + repay.toLocaleString() : '-'}</td>
+                    <td class="py-4 px-4">
+                        <span class="px-3 py-1 rounded-full text-[10px] uppercase font-black ${tagClass}">
+                            ${statusText}
+                        </span>
+                    </td>
+                `;
+                body.appendChild(tr);
+
+                if (currentRatio < 110) break;
+                currentDropPercent -= 0.05;
+            }
+        }
+    </script>
+</body>
+</html>
